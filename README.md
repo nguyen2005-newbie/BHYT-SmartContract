@@ -5,7 +5,7 @@ Dự án nghiên cứu ứng dụng Hợp đồng thông minh (Smart Contract) t
 ## 👥 Thành Viên Thực Hiện
 * **Sinh viên:** Nguyễn Thanh Nguyên
 * **Chuyên ngành:** Công nghệ Tài chính (Fintech)
-* **Trường:** Đại học Công nghiệp Thực phẩm TP.HCM (HUIT)
+* **Trường:** Đại học Công Thương TP.HCM (HUIT)
 
 ## 📌 Các Tính Năng Cốt Lõi
 1. **Cấp thẻ định danh điện tử (DID):** Tự động áp dụng thuật toán giảm trừ gia cảnh lũy tiến khi mua thẻ on-chain.
