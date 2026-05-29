@@ -46,6 +46,7 @@ contract BaoHiemYTe {
     struct HoSoChoThanhToan {
         bool tonTai;
         bool daXacNhanThanhToan;
+        bool biLoaiTru;                 // TÓI ƯU: Đánh dấu hồ sơ rơi vào danh mục loại trừ (Tình huống 6)
         address benhVienKham;          
         uint256 tongVienPhiVND;         
         uint256 tienMienGiamBaoHiemVND;
@@ -61,12 +62,14 @@ contract BaoHiemYTe {
     uint256 public heSoPhatTraiTuyen;     
     uint256 public tyGiaEthSangVND;       
     uint256 public tongQuyBaoHiemETH;     
+    uint256 public hanMucChiTraToiDaVND;   // TỐI ƯU: Giới hạn hạn mức gói (Tình huống 5)
 
     mapping(address => BenhVien) public danhSachBenhVien;
     mapping(address => TheBHYT) public danhSachTheBHYT;
     mapping(uint256 => uint256) public soThanhVienHoGiaDinh;      
     mapping(address => uint256) public congChoQuyetToanBenhVien;    
     mapping(address => HoSoChoThanhToan) public hoSoCuaBenhNhan; 
+    mapping(string => bool) public danhMucBenhLoaiTru; // TỐI ƯU: Bảng Lookup Table tra cứu bệnh bị loại trừ
 
     // --- SỰ KIỆN (EVENTS) ---
     event CoSoYTeDaDangKy(address indexed diaChiBenhVien, string tenBenhVien, uint8 capTuyen);
@@ -74,19 +77,38 @@ contract BaoHiemYTe {
     event HoSoYTeChoQuyetToanDaLap(address indexed benhVien, address indexed benhNhan, uint256 tongHoaDonVND);
     event GiaoDichVienPhiHoanTat(address indexed benhNhan, address indexed benhVien, uint256 tienQuyTraETH, uint256 tienDanTraETH);
     event BenhVienDaRutTienThanhCong(address indexed benhVien, uint256 soTienETH);
+    event TyGiaDaCapNhat(uint256 tyGiaMoi);
+    event HoSoBiLoaiTruCanKiemDuyet(address indexed benhNhan, string maBenhICD);
 
-    // BƯỚC 1: KHỞI TẠO HỢP ĐỒNG (Admin thiết lập tham số nền tảng)
+    // BƯỚC 1: KHỞI TẠO HỢP ĐỒNG
     constructor(
         uint256 _luongCoSoVND,
         uint256 _phiDuyTriHeThongVND,
         uint256 _heSoPhatTraiTuyen,
-        uint256 _tyGiaEthSangVND
+        uint256 _tyGiaEthSangVND,
+        uint256 _hanMucChiTraToiDaVND
     ) {
         admin = msg.sender; 
         luongCoSoVND = _luongCoSoVND;
         phiDuyTriHeThongVND = _phiDuyTriHeThongVND;
         heSoPhatTraiTuyen = _heSoPhatTraiTuyen;
         tyGiaEthSangVND = _tyGiaEthSangVND;
+        hanMucChiTraToiDaVND = _hanMucChiTraToiDaVND;
+
+        // Khởi tạo sẵn một số mã bệnh loại trừ (Ví dụ: K31 - Phẫu thuật thẩm mỹ)
+        danhMucBenhLoaiTru["K31"] = true;
+    }
+
+    // CƠ CHẾ FINTECH: Cập nhật tỷ giá thực thời gian thực
+    function capNhatTyGia(uint256 _tyGiaMoi) external chiCoAdmin {
+        require(_tyGiaMoi > 0, "Ty gia phai lon hon 0");
+        tyGiaEthSangVND = _tyGiaMoi;
+        emit TyGiaDaCapNhat(_tyGiaMoi);
+    }
+
+    // Quản lý danh mục loại trừ (Lookup Table)
+    function capNhatDanhMucLoaiTru(string memory _maBenh, bool _loaiTru) external chiCoAdmin {
+        danhMucBenhLoaiTru[_maBenh] = _loaiTru;
     }
 
     // BƯỚC 2: BỆNH VIỆN ĐĂNG KÝ VÀO HỆ THỐNG
@@ -147,16 +169,34 @@ contract BaoHiemYTe {
         emit TheBHYTDaMuaThanhCong(msg.sender, _maThe, msg.value);
     }
 
-    // BƯỚC 4: BỆNH VIỆN ĐĂNG HỒ SƠ VÀ CHI PHÍ LÊN CHUỖI KHỐI
+    // BƯỚC 4: BỆNH VIỆN ĐĂNG HỒ SƠ VÀ CHI PHÍ LÊN CHUỖI KHỐI (ĐÃ FIX TINH HUỐNG 5 & 6)
     function lapHoSoChoQuyetToan(
         address _benhNhan,
         uint256 _tongVienPhiVND,
         uint256 _khoanHopLeBaoHiemVND,
+        string memory _maBenhICD, // Thêm mã bệnh đối chiếu danh mục loại trừ
         bool _coGiayChuyenTuyenMienTru
     ) external chiCoBenhVien {
         TheBHYT memory the = danhSachTheBHYT[_benhNhan];
         require(the.dangHoatDong && the.hanSuDung >= block.timestamp, "The cua benh nhan het han hoac khong ton tai");
         require(!hoSoCuaBenhNhan[_benhNhan].tonTai || hoSoCuaBenhNhan[_benhNhan].daXacNhanThanhToan, "Benh nhan co ho so treo chua xu ly");
+
+        // KIỂM TRA TÌNH HUỐNG 6: Danh mục bệnh loại trừ (Lookup Table)
+        if (danhMucBenhLoaiTru[_maBenhICD]) {
+            hoSoCuaBenhNhan[_benhNhan] = HoSoChoThanhToan({
+                tonTai: true,
+                daXacNhanThanhToan: false,
+                biLoaiTru: true, // Đánh dấu treo để xem xét thủ công
+                benhVienKham: msg.sender,
+                tongVienPhiVND: _tongVienPhiVND,
+                tienMienGiamBaoHiemVND: 0,
+                tienBenhNhanTraVND: _tongVienPhiVND,
+                tienQuyChiTraETH: 0,
+                tienBenhNhanTraETH: (_tongVienPhiVND * 1e18) / tyGiaEthSangVND
+            });
+            emit HoSoBiLoaiTruCanKiemDuyet(_benhNhan, _maBenhICD);
+            return; 
+        }
 
         uint256 tyLeBaoHiemChiTra = 80; 
         if (the.nhomTuoi == NhomDoiTuong.ChinhSach) tyLeBaoHiemChiTra = 100;
@@ -174,11 +214,18 @@ contract BaoHiemYTe {
         }
 
         uint256 tienMienGiamVND = (_khoanHopLeBaoHiemVND * tyLeBaoHiemChiTra) / 100;
+
+        // KIỂM TRA TÌNH HUỐNG 5: Giới hạn hạn mức gói chi trả tối đa
+        if (tienMienGiamVND > hanMucChiTraToiDaVND) {
+            tienMienGiamVND = hanMucChiTraToiDaVND; 
+        }
+
         uint256 tienBenhNhanTraVND = _tongVienPhiVND - tienMienGiamVND;
 
         hoSoCuaBenhNhan[_benhNhan] = HoSoChoThanhToan({
             tonTai: true,
             daXacNhanThanhToan: false,
+            biLoaiTru: false,
             benhVienKham: msg.sender,
             tongVienPhiVND: _tongVienPhiVND,
             tienMienGiamBaoHiemVND: tienMienGiamVND,
@@ -190,21 +237,23 @@ contract BaoHiemYTe {
         emit HoSoYTeChoQuyetToanDaLap(msg.sender, _benhNhan, _tongVienPhiVND);
     }
 
-    // BƯỚC 5: NGƯỜI DÂN XEM CHI TIẾT VÀ KÝ DUYỆT THANH TOÁN (XEM ĐƯỢC SỐ GIẢM)
+    // BƯỚC 5: NGƯỜI DÂN XEM CHI TIẾT VÀ KÝ DUYỆT THANH TOÁN
     function xemChiTietHoSoCho(address _viBenhNhan) external view returns (
         uint256 tongVienPhiVND, 
         uint256 soTienDuocBHYTChiTraVND, 
         uint256 soTienTuChiTraVND,
-        uint256 soTienDONGCHITRA_ETH
+        uint256 soTienDONGCHITRA_ETH,
+        bool biLoaiTruDanhMuc
     ) {
         HoSoChoThanhToan memory hs = hoSoCuaBenhNhan[_viBenhNhan];
         require(hs.tonTai && !hs.daXacNhanThanhToan, "Khong tim thay ho so nao dang cho thanh toan");
-        return (hs.tongVienPhiVND, hs.tienMienGiamBaoHiemVND, hs.tienBenhNhanTraVND, hs.tienBenhNhanTraETH);
+        return (hs.tongVienPhiVND, hs.tienMienGiamBaoHiemVND, hs.tienBenhNhanTraVND, hs.tienBenhNhanTraETH, hs.biLoaiTru);
     }
 
     function xacNhanVaThanhToan() external payable chongKhoaKep {
         HoSoChoThanhToan storage hs = hoSoCuaBenhNhan[msg.sender];
         require(hs.tonTai && !hs.daXacNhanThanhToan, "Ban khong co ho so treo nao can thanh toan");
+        require(!hs.biLoaiTru, "Ho so dang bi khoa de cho xet duyet thu cong tu Hoi dong Y khoa");
         
         if (hs.tienBenhNhanTraETH > 0) {
             uint256 gioiHanThapNhat = (hs.tienBenhNhanTraETH * 98) / 100;
@@ -216,25 +265,37 @@ contract BaoHiemYTe {
         hs.daXacNhanThanhToan = true;
         tongQuyBaoHiemETH -= hs.tienQuyChiTraETH;
 
-        // Trộn nguồn quỹ tổng và tiền mặt của dân đưa vào cổng chờ của bệnh viện khám
+        // Cộng dồn tiền vào cổng chờ quyết toán của bệnh viện
         uint256 tongDoanhThuDonViNhan = hs.tienQuyChiTraETH + msg.value;
         congChoQuyetToanBenhVien[hs.benhVienKham] += tongDoanhThuDonViNhan;
 
         emit GiaoDichVienPhiHoanTat(msg.sender, hs.benhVienKham, hs.tienQuyChiTraETH, msg.value);
     }
 
-    // BƯỚC 6: BỆNH VIỆN THU HỒI DOANH THU VỀ VÍ NGÂN QUỸ
+    // BƯỚC 6: BỆNH VIỆN THU HỒI DOANH THU VỀ VÍ NGÂN QUỸ (CƠ CHẾ PULL-OVER-PUSH)
     function rutTienDoanhThu() external chiCoBenhVien chongKhoaKep {
         uint256 soTienRut = congChoQuyetToanBenhVien[msg.sender];
         require(soTienRut > 0, "Tai khoan cong cho cua benh vien hien tai bang khong");
 
-        // Xóa trạng thái trước khi gửi ETH để chống hack Reentrancy
+        // Khắc phục lỗ hổng Reentrancy bằng Checks-Effects-Interactions
         congChoQuyetToanBenhVien[msg.sender] = 0;
 
         (bool thanhCong, ) = msg.sender.call{value: soTienRut}("");
         require(thanhCong, "Rut dong tien quyet toan ve vi that bai");
 
         emit BenhVienDaRutTienThanhCong(msg.sender, soTienRut);
+    }
+
+    // Hàm Admin hỗ trợ giải quyết hồ sơ loại trừ sau khi hậu kiểm thủ công thành công
+    function adminDuyetGiaiXửHoSoLoaiTru(address _benhNhan, uint256 _tienQuyChiTraMoiVND) external chiCoAdmin chongKhoaKep {
+        HoSoChoThanhToan storage hs = hoSoCuaBenhNhan[_benhNhan];
+        require(hs.tonTai && !hs.daXacNhanThanhToan && hs.biLoaiTru, "Ho so khong hop le de duoc can thiep");
+
+        hs.biLoaiTru = false; // Gỡ cờ khóa
+        hs.tienMienGiamBaoHiemVND = _tienQuyChiTraMoiVND;
+        hs.tienBenhNhanTraVND = hs.tongVienPhiVND - _tienQuyChiTraMoiVND;
+        hs.tienQuyChiTraETH = (_tienQuyChiTraMoiVND * 1e18) / tyGiaEthSangVND;
+        hs.tienBenhNhanTraETH = (hs.tienBenhNhanTraVND * 1e18) / tyGiaEthSangVND;
     }
 
     receive() external payable {
