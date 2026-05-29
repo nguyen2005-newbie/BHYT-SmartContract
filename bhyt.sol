@@ -46,7 +46,7 @@ contract BaoHiemYTe {
     struct HoSoChoThanhToan {
         bool tonTai;
         bool daXacNhanThanhToan;
-        bool biLoaiTru;                 // TÓI ƯU: Đánh dấu hồ sơ rơi vào danh mục loại trừ (Tình huống 6)
+        bool biLoaiTru;                
         address benhVienKham;          
         uint256 tongVienPhiVND;         
         uint256 tienMienGiamBaoHiemVND;
@@ -62,14 +62,14 @@ contract BaoHiemYTe {
     uint256 public heSoPhatTraiTuyen;     
     uint256 public tyGiaEthSangVND;       
     uint256 public tongQuyBaoHiemETH;     
-    uint256 public hanMucChiTraToiDaVND;   // TỐI ƯU: Giới hạn hạn mức gói (Tình huống 5)
+    uint256 public hanMucChiTraToiDaVND;  
 
     mapping(address => BenhVien) public danhSachBenhVien;
     mapping(address => TheBHYT) public danhSachTheBHYT;
     mapping(uint256 => uint256) public soThanhVienHoGiaDinh;      
     mapping(address => uint256) public congChoQuyetToanBenhVien;    
     mapping(address => HoSoChoThanhToan) public hoSoCuaBenhNhan; 
-    mapping(string => bool) public danhMucBenhLoaiTru; // TỐI ƯU: Bảng Lookup Table tra cứu bệnh bị loại trừ
+    mapping(string => bool) public danhMucBenhLoaiTru; 
 
     // --- SỰ KIỆN (EVENTS) ---
     event CoSoYTeDaDangKy(address indexed diaChiBenhVien, string tenBenhVien, uint8 capTuyen);
