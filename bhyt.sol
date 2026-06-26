@@ -287,7 +287,7 @@ contract BaoHiemYTe {
     }
 
     // Hàm Admin hỗ trợ giải quyết hồ sơ loại trừ sau khi hậu kiểm thủ công thành công
-    function adminDuyetGiaiXửHoSoLoaiTru(address _benhNhan, uint256 _tienQuyChiTraMoiVND) external chiCoAdmin chongKhoaKep {
+    function adminDuyetHoSoLoaiTru(address _benhNhan, uint256 _tienQuyChiTraMoiVND) external chiCoAdmin chongKhoaKep {
         HoSoChoThanhToan storage hs = hoSoCuaBenhNhan[_benhNhan];
         require(hs.tonTai && !hs.daXacNhanThanhToan && hs.biLoaiTru, "Ho so khong hop le de duoc can thiep");
 
